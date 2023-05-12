@@ -6,10 +6,6 @@ The goal of the project is to provide DAO functionality in Gnolang.
 
 Use `gnodev test r/gnodao --verbose --root-dir ../gno` to run the tests.
 
-## Implementation direction
-
-We will follow the implementation of cw3 on cosmwasm.
-
 ## User flow
 
 1- you can deploy a contract
