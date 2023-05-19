@@ -9,10 +9,20 @@ import (
 	"time"
 )
 
-// GNODAO DATA TYPES
-type Approval struct {
-	address   std.Address // address of the approver
-	timestamp uint64      // block timestamp of the approval
+type VoteOption uint32
+
+const (
+	YES          VoteOption = 0 // Indicates approval of the proposal in its current form.
+	NO           VoteOption = 1 // Indicates disapproval of the proposal in its current form.
+	NO_WITH_VETO VoteOption = 2 // Indicates stronger opposition to the proposal than simply voting No. Not available for SuperMajority-typed proposals as a simple No of 1/3 out of total votes would result in the same outcome.
+	ABSTAIN      VoteOption = 3 // Indicates that the voter is impartial to the outcome of the proposal. Although Abstain votes are counted towards the quorum, they're excluded when calculating the ratio of other voting options above.
+)
+
+// GNODAO VOTE
+type Vote struct {
+	address   std.Address // address of the voter
+	timestamp uint64      // block timestamp of the vote
+	option    VoteOption  // vote option
 }
 
 type ProposalStatus uint32
