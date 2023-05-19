@@ -15,7 +15,7 @@ Use `gnodev test r/gnodao --verbose --root-dir ../gno` to run the tests.
 5- one member can execute the tx if nb of yes > quorum
 6- one member can close the proposal if nb of yes < quorum (can be annoying)
 I think step 6 is weird, maybe we can just set an expiration period for each proposal when we submit one. If block.timestamp > expiration then no one can vote or execute it
-What is you github handle ? 🙂 I'll add you to a github repo for this project
+
 
 ## Research
 
