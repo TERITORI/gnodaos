@@ -32,7 +32,7 @@ Must allow community to moderate /boards or a feed in a decentralized way.
 
 ## DAO v0.1 info
 
-```go=
+```go
 type DAO struct{
     id uint64
     uri string // DAO homepage link
@@ -42,13 +42,15 @@ type DAO struct{
     spendHistory []Spend // spend history - reserved for later use
     permissions []string // permissions managed on DAO - reserved for later use
     permMap map[string]map[string]bool // permission map - reserved for later use
+	votingPowers     map[string]uint64
+	totalVotingPower uint64
     voteQuorum uint64
     threshold uint64
     vetoThreshold uint64
 }
 ```
 
-```go=
+```go
 type Proposal struct{
     daoId uint64 // dao id of the proposal
     id uint64 // unique id assigned for each proposal
@@ -57,6 +59,7 @@ type Proposal struct{
     submitTime uint64 // proposal submission time
     voteEndTime uint64 // vote end time for the proposal
     status uint64 // StatusNil | StatusVotingPeriod | StatusPassed | StatusRejected | StatusFailed
+	votes map[string]Vote // votes on the proposal
 }
 ```
 

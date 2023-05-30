@@ -28,66 +28,73 @@ type Vote struct {
 type ProposalStatus uint32
 
 const (
-	PENDING    ProposalStatus = 0
-	TO_EXECUTE ProposalStatus = 1
-	EXECUTED   ProposalStatus = 2
-	EXPIRED    ProposalStatus = 3
-	CANCELLED  ProposalStatus = 4
+	NIL           ProposalStatus = 0
+	VOTING_PERIOD ProposalStatus = 1
+	PASSED        ProposalStatus = 2
+	REJECTED      ProposalStatus = 3
+	FAILED        ProposalStatus = 4
 )
 
 func (s ProposalStatus) String() string {
 	switch s {
-	case PENDING:
-		return "Pending"
-	case TO_EXECUTE:
-		return "ToExecute"
-	case EXECUTED:
-		return "Executed"
-	case EXPIRED:
-		return "Expired"
-	case CANCELLED:
-		return "Cancelled"
+	case NIL:
+		return "Nil"
+	case VOTING_PERIOD:
+		return "VotingPeriod"
+	case PASSED:
+		return "Passed"
+	case REJECTED:
+		return "Rejected"
+	case FAILED:
+		return "Failed"
 	}
 	return ""
 }
 
 type Proposal struct {
-	Id          uint64         // incremented at every new proposal
-	Title       string         // title metadata
-	Description string         // description metadata
-	Expiration  uint64         // expiration timestamp
-	Tx          []Msg          // raw transaction
-	Status      ProposalStatus // 0: PENDING | 1: TO_EXECUTE | 2: EXECUTED | 3: EXPIRED
-	Approvals   []Approval     // approvals on the proposal
+	daoId       uint64          // dao id of the proposal
+	id          uint64          // unique id assigned for each proposal
+	title       string          // proposal title
+	summary     string          // proposal summary
+	submitTime  uint64          // proposal submission time
+	voteEndTime uint64          // vote end time for the proposal
+	status      ProposalStatus  // StatusNil | StatusVotingPeriod | StatusPassed | StatusRejected | StatusFailed
+	votes       map[string]Vote // votes on the proposal
 }
 
-type Quorum struct {
-	members     []std.Address // members of the quorum
-	minApproval uint64        // approval ratio of the quorum
+type DAO struct {
+	id               uint64
+	uri              string                     // DAO homepage link
+	metadata         string                     // DAO metadata reference link
+	funds            Coins                      // DAO managing funds
+	depositHistory   []Deposit                  // deposit history - reserved for later use
+	spendHistory     []Spend                    // spend history - reserved for later use
+	permissions      []string                   // permissions managed on DAO - reserved for later use
+	permMap          map[string]map[string]bool // permission map - reserved for later use
+	votingPowers     map[string]uint64
+	totalVotingPower uint64
+	voteQuorum       uint64
+	threshold        uint64
+	vetoThreshold    uint64
 }
 
 // GNODAO STATE
-var quorum Quorum
+var daos []DAO
+var proposals [][]Proposal
 
-var proposals []Proposal
-
-type Msg struct{}
-
-func isQuorumMember(address std.Address) bool {
-	for _, member := range quorum.members {
-		if member == address {
-			return true
-		}
+func isDAOMember(daoId uint64, address std.Address) bool {
+	if len(daos) => int(daoId) {
+		return false
 	}
-	return false
+	return daos[int(daoId)].votingPowers[address.String()] > 0
 }
 
 // GNODAO FUNCTIONS
-func CreateProposal(title, description string, rawTx []Msg, expirationTimestamp uint64) {
+func CreateProposal(daoId uint64, title, description string, rawTx []Msg, expirationTimestamp uint64) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not in the current quorum, revert
-	isCallerDaoMember := isQuorumMember(caller)
+	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a gnodao member")
 	}
@@ -115,20 +122,20 @@ func CreateProposal(title, description string, rawTx []Msg, expirationTimestamp 
 	})
 }
 
-func Approve(proposalId uint64, execute bool) {
+func Approve(daoId, proposalId uint64, execute bool) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not in the current quorum, revert
-	isCallerDaoMember := isQuorumMember(caller)
+	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a gnodao member")
 	}
 
 	// if sender already approved this proposal, panic
-	if int(proposalId) >= len(proposals) {
+	if int(proposalId) >= len(proposals[daoId]) {
 		panic("invalid proposal id")
 	}
-	proposal := proposals[proposalId]
+	proposal := proposals[daoId][proposalId]
 	for _, approval := range proposal.Approvals {
 		if approval.address == caller {
 			panic("already approved")
@@ -170,7 +177,7 @@ func Execute(proposalId uint64) {
 	}
 
 	// if sender is not in the current quorum, revert
-	isCallerDaoMember := isQuorumMember(caller)
+	isCallerDaoMember := isDAOMember(proposal.daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a gnodao member")
 	}
