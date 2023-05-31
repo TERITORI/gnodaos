@@ -73,6 +73,7 @@ type DAO struct {
 	permMap          map[string]map[string]bool // permission map - reserved for later use
 	votingPowers     map[string]uint64
 	totalVotingPower uint64
+	votingPeriod     uint64
 	voteQuorum       uint64
 	threshold        uint64
 	vetoThreshold    uint64
@@ -90,39 +91,31 @@ func isDAOMember(daoId uint64, address std.Address) bool {
 }
 
 // GNODAO FUNCTIONS
-func CreateProposal(daoId uint64, title, description string, rawTx []Msg, expirationTimestamp uint64) {
+func CreateDAO() {
+	// TODO:
+}
+
+func CreateProposal(daoId uint64, title, summary string) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not in the current quorum, revert
 	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
-		panic("caller is not a gnodao member")
+		panic("caller is not a dao member")
 	}
 
-	// if expirationTimestamp is already reached, panic
-	if time.Now().Unix() > int64(expirationTimestamp) {
-		panic("expiration time already passed")
-	}
-
-	// Create a proposal for the quorum and add it to the proposals array
-	proposalId := uint64(len(proposals))
-	proposals = append(proposals, Proposal{
-		Id:          proposalId,
-		Title:       title,
-		Description: description,
-		Expiration:  expirationTimestamp,
-		Tx:          rawTx,
-		Status:      PENDING, // 0: PENDING | 1: TO_EXECUTE | 2: EXECUTED | 3: EXPIRED
-		Approvals: []Approval{
-			{
-				address:   caller,
-				timestamp: uint64(time.Now().Unix()),
-			},
-		}, // approvals on the proposal
+	proposals[daoId] = append(proposals[daoId], Proposal{
+		daoId:       daoId,
+		id:          len(proposals[daoId]),
+		title:       title,
+		summary:     summary,
+		submitTime:  time.Now().Unix(),
+		voteEndTime: time.Now().Unix()+daos[daoId].votingPeriod,
+		status:      VOTING_PERIOD,
 	})
 }
 
-func Approve(daoId, proposalId uint64, execute bool) {
+func Vote(daoId, proposalId uint64, option VoteOption) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not in the current quorum, revert
@@ -131,35 +124,21 @@ func Approve(daoId, proposalId uint64, execute bool) {
 		panic("caller is not a gnodao member")
 	}
 
-	// if sender already approved this proposal, panic
+	// if invalid proposal, panic
 	if int(proposalId) >= len(proposals[daoId]) {
 		panic("invalid proposal id")
 	}
-	proposal := proposals[daoId][proposalId]
-	for _, approval := range proposal.Approvals {
-		if approval.address == caller {
-			panic("already approved")
-		}
+
+	// if vote end time is reached panic
+	if time.Now().Unix() > int64(proposal.voteEndTime) {
+		panic("vote end time reached")
 	}
 
-	// if proposal expiration time is reached, set proposal as EXPIRED
-	if time.Now().Unix() > int64(proposal.Expiration) {
-		proposals[proposalId].Status = EXPIRED
-		return
-	}
-
-	// Create an approval in a the specified proposal
-	proposals[proposalId].Approvals = append(proposal.Approvals, Approval{
-		address:   caller,
-		timestamp: uint64(time.Now().Unix()),
-	})
-
-	if len(proposals[proposalId].Approvals) >= int(quorum.minApproval) {
-		// if current quorum is reached after this vote on the proposal, set proposal to TO_EXECUTE
-		proposals[proposalId].Status = TO_EXECUTE
-		if execute { // if current quorum is reached after this vote on the proposal and execute is true, execute the proposal
-			Execute(proposalId)
-		}
+	// Create a port
+	proposals[daoId][proposalId].votes[caller.String()] = Vote{
+		address: caller,
+		timestamp: time.Now().Unix(),
+		option: option,
 	}
 }
 
