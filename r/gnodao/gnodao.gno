@@ -117,6 +117,7 @@ func CreateDAO(
 		threshold: threshold,
 		vetoThreshold: vetoThreshold,
 	})
+	proposals = append(proposals, []Proposal{})
 }
 
 func CreateProposal(daoId uint64, title, summary string) {
@@ -198,19 +199,6 @@ func Execute(proposalId uint64) {
 	proposals[proposalId].Status = EXECUTED
 }
 
-func updateQuorum(addresses []std.Address, minApproval uint64) {
-	// TODO: if sender is not the gnodao calling itself, revert
-
-	// Update the current quorum
-	// Note: to update the quorum, users have to make a proposal with rawTx calling this internal func
-	quorum.members = addresses
-	quorum.minApproval = minApproval
-}
-
-func GetQuorum() Quorum {
-	return quorum
-}
-
 func GetProposal(daoId, proposalId uint64) Proposal {
 	if int(daoId) >= len(daos) {
 		panic("invalid dao id")
@@ -225,11 +213,26 @@ func GetProposals(daoId, startAfter, limit uint64) []Proposal {
 	if int(daoId) >= len(daos) {
 		panic("invalid dao id")
 	}
-	max := uint64(len(proposals))
+	max := uint64(len(proposals[daoId]))
 	if startAfter+limit < max {
 		max = startAfter + limit
 	}
-	return proposals[startAfter:max]
+	return proposals[daoId][startAfter:max]
+}
+
+func GetDAO(daoId uint64) Proposal {
+	if int(daoId) >= len(daos) {
+		panic("invalid dao id")
+	}
+	return daos[daoId]
+}
+
+func GetDAOs(startAfter, limit uint64) []Proposal {
+	max := uint64(len(daos))
+	if startAfter+limit < max {
+		max = startAfter + limit
+	}
+	return daos[startAfter:max]
 }
 
 func Render(path string) string {
@@ -287,7 +290,7 @@ Cancelled:
 		if len(proposals) <= int(proposalId) {
 			panic("invalid proposal id")
 		}
-		proposal := proposals[proposalId]
+		proposal := proposals[daoId][proposalId]
 
 		statusText := proposal.Status.String()
 		approversText := ``
