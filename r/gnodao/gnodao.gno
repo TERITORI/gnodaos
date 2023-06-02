@@ -187,14 +187,20 @@ func GetQuorum() Quorum {
 	return quorum
 }
 
-func GetProposal(proposalId uint64) Proposal {
-	if int(proposalId) >= len(proposals) {
+func GetProposal(daoId, proposalId uint64) Proposal {
+	if int(daoId) >= len(daos) {
+		panic("invalid dao id")
+	}
+	if int(proposalId) >= len(proposals[daoId]) {
 		panic("invalid proposal id")
 	}
-	return proposals[proposalId]
+	return proposals[daoId][proposalId]
 }
 
-func GetProposals(startAfter, limit uint64) []Proposal {
+func GetProposals(daoId, startAfter, limit uint64) []Proposal {
+	if int(daoId) >= len(daos) {
+		panic("invalid dao id")
+	}
 	max := uint64(len(proposals))
 	if startAfter+limit < max {
 		max = startAfter + limit
