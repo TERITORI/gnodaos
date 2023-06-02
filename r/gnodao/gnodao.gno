@@ -91,8 +91,32 @@ func isDAOMember(daoId uint64, address std.Address) bool {
 }
 
 // GNODAO FUNCTIONS
-func CreateDAO() {
-	// TODO:
+func CreateDAO(
+	uri              string,
+	metadata         string,
+	votingPowers     map[string]uint64,
+	totalVotingPower uint64,
+	votingPeriod     uint64,
+	voteQuorum       uint64,
+	threshold        uint64,
+	vetoThreshold    uint64,
+) {
+	daoId := uint64(len(daos))
+	daos = append(daos, DAO {
+		id: daoId,
+		uri: uri,
+		metadata: metadata,
+		funds: Coins{},
+		depositHistory: []Deposit{}  , 
+		spendHistory: []Spend {},
+		permissions: []string{},
+		votingPowers: votingPowers,
+		totalVotingPower:totalVotingPower,
+		votingPeriod: votingPeriod,
+		voteQuorum: voteQuorum,
+		threshold: threshold,
+		vetoThreshold: vetoThreshold,
+	})
 }
 
 func CreateProposal(daoId uint64, title, summary string) {
