@@ -126,6 +126,7 @@ func CreateDAO(
 	proposals = append(proposals, []Proposal{})
 }
 
+// TODO: add missing params for CreateProposal
 func CreateProposal(daoId uint64, title, summary string) {
 	caller := std.GetOrigCaller()
 
@@ -187,6 +188,7 @@ func Vote(daoId, proposalId uint64, option VoteOption) {
 	proposals[daoId][proposalId].votingPowers[option] += callerVotingPower
 }
 
+// TODO: handle voting power change during voting period for other proposal
 func TallyAndExecute(daoId, proposalId uint64) {
 	caller := std.GetOrigCaller()
 
