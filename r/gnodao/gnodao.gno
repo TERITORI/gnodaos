@@ -25,6 +25,23 @@ type Vote struct {
 	option    VoteOption  // vote option
 }
 
+type DAO struct {
+	id               uint64
+	uri              string                     // DAO homepage link
+	metadata         string                     // DAO metadata reference link
+	funds            Coins                      // DAO managing funds
+	depositHistory   []Deposit                  // deposit history - reserved for later use
+	spendHistory     []Spend                    // spend history - reserved for later use
+	permissions      []string                   // permissions managed on DAO - reserved for later use
+	permMap          map[string]map[string]bool // permission map - reserved for later use
+	votingPowers     map[string]uint64
+	totalVotingPower uint64
+	votingPeriod     uint64
+	voteQuorum       uint64
+	threshold        uint64
+	vetoThreshold    uint64
+}
+
 type ProposalStatus uint32
 
 const (
@@ -52,31 +69,20 @@ func (s ProposalStatus) String() string {
 }
 
 type Proposal struct {
-	daoId       uint64          // dao id of the proposal
-	id          uint64          // unique id assigned for each proposal
-	title       string          // proposal title
-	summary     string          // proposal summary
-	submitTime  uint64          // proposal submission time
-	voteEndTime uint64          // vote end time for the proposal
-	status      ProposalStatus  // StatusNil | StatusVotingPeriod | StatusPassed | StatusRejected | StatusFailed
-	votes       map[string]Vote // votes on the proposal
-}
-
-type DAO struct {
-	id               uint64
-	uri              string                     // DAO homepage link
-	metadata         string                     // DAO metadata reference link
-	funds            Coins                      // DAO managing funds
-	depositHistory   []Deposit                  // deposit history - reserved for later use
-	spendHistory     []Spend                    // spend history - reserved for later use
-	permissions      []string                   // permissions managed on DAO - reserved for later use
-	permMap          map[string]map[string]bool // permission map - reserved for later use
-	votingPowers     map[string]uint64
-	totalVotingPower uint64
-	votingPeriod     uint64
-	voteQuorum       uint64
-	threshold        uint64
-	vetoThreshold    uint64
+	daoId        uint64                // dao id of the proposal
+	id           uint64                // unique id assigned for each proposal
+	title        string                // proposal title
+	summary      string                // proposal summary
+	spendAmount  Coins                 // amount of tokens to spend as part the proposal
+	spender      std.Address           // address to receive spending tokens
+	vpUpdates    map[string]uint64     // updates on voting power - optional
+	newMetadata  string                // new metadata for the DAO - optional
+	newURI       string                // new URI for the DAO - optional
+	submitTime   uint64                // proposal submission time
+	voteEndTime  uint64                // vote end time for the proposal
+	status       ProposalStatus        // StatusNil | StatusVotingPeriod | StatusPassed | StatusRejected | StatusFailed
+	votes        map[string]Vote       // votes on the proposal
+	votingPowers map[VoteOption]uint64 // voting power sum per voting option
 }
 
 // GNODAO STATE
@@ -123,7 +129,7 @@ func CreateDAO(
 func CreateProposal(daoId uint64, title, summary string) {
 	caller := std.GetOrigCaller()
 
-	// if sender is not in the current quorum, revert
+	// if sender is not a dao member, revert
 	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a dao member")
@@ -143,7 +149,7 @@ func CreateProposal(daoId uint64, title, summary string) {
 func Vote(daoId, proposalId uint64, option VoteOption) {
 	caller := std.GetOrigCaller()
 
-	// if sender is not in the current quorum, revert
+	// if sender is not a dao member, revert
 	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a gnodao member")
@@ -159,44 +165,123 @@ func Vote(daoId, proposalId uint64, option VoteOption) {
 		panic("vote end time reached")
 	}
 
-	// Create a port
+	// Original vote cancel
+	callerVotingPower := daos[daoId].votingPowers[caller.String()]
+	vote, ok := proposals[daoId][proposalId].votes[caller.String()]
+	if ok {
+		if proposals[daoId][proposalId].votingPowers[vote.option] > callerVotingPower {
+			proposals[daoId][proposalId].votingPowers[vote.option] -= callerVotingPower
+		} else {
+			proposals[daoId][proposalId].votingPowers[vote.option] = 0
+		}
+	}
+
+	// Create a vote
 	proposals[daoId][proposalId].votes[caller.String()] = Vote{
 		address: caller,
 		timestamp: time.Now().Unix(),
 		option: option,
 	}
+
+	// Voting power by option update for new vote
+	proposals[daoId][proposalId].votingPowers[option] += callerVotingPower
 }
 
-func Execute(proposalId uint64) {
+func TallyAndExecute(daoId, proposalId uint64) {
 	caller := std.GetOrigCaller()
 
-	if int(proposalId) >= len(proposals) {
-		panic("invalid proposal id")
-	}
-	proposal := proposals[proposalId]
-
-	// if tx is not TO_EXECUTE, revert
-	if proposal.Status != TO_EXECUTE {
-		panic("not an executable proposal")
-	}
-
-	// if sender is not in the current quorum, revert
-	isCallerDaoMember := isDAOMember(proposal.daoId, caller)
+	// if sender is not a dao member, revert
+	isCallerDaoMember := isDAOMember(daoId, caller)
 	if !isCallerDaoMember {
 		panic("caller is not a gnodao member")
 	}
 
-	// if expiration time is reached, set proposal as CANCELLED
-	if time.Now().Unix() > int64(proposal.Expiration) {
-		proposals[proposalId].Status = CANCELLED
-		return
+	// validation for proposalId
+	if int(proposalId) >= len(proposals[daoId]) {
+		panic("invalid proposal id")
+	}
+	dao := daos[daoId]
+	proposal := proposals[daoId][proposalId]
+	votingPowers := proposal.votingPowers
+
+	if time.Now().Unix() < int64(proposal.voteEndTime) {
+		panic("proposal is in voting period")
 	}
 
-	// Execute an approved tx
-	boards.CreateBoard("new board")
+	// reference logic for tally - https://github.com/cosmos/cosmos-sdk/blob/main/x/gov/keeper/tally.go
+	totalVotes := votingPowers[YES] + votingPowers[NO] + votingPowers[NO_WITH_VETO] + votingPowers[ABSTAIN]
+	if totalVotes < dao.totalVotingPower * dao.voteQuorum / 100 {
+		proposals[daoId][proposalId].status = REJECTED
+	}
 
-	// set proposal to EXECUTED
-	proposals[proposalId].Status = EXECUTED
+	// If no one votes (everyone abstains), proposal rejected
+	if totalVotes == votingPowers[ABSTAIN] {
+		proposals[daoId][proposalId].status = REJECTED
+	}
+
+	// If more than 1/3 of voters veto, proposal rejected
+	vetoThreshold := dao.vetoThreshold
+	if votingPowers[NO_WITH_VETO] > totalVotes * vetoThreshold / 100 {
+		proposals[daoId][proposalId].status = REJECTED
+	}
+
+	// If more than 1/2 of non-abstaining voters vote Yes, proposal passes
+	threshold := dao.threshold
+	if votingPowers[YES] > (totalVotes - votingPowers[ABSTAIN]) * threshold / 100 {
+		proposals[daoId][proposalId].status = PASSED
+
+		if proposal.newMetadata != "" {
+			daos[daoId].metadata = proposal.newMetadata
+		}
+
+		if proposal.newMetadata != "" {
+			daos[daoId].uri = proposal.newURI
+		}
+
+		for account, vp := range proposal.vpUpdates {
+			daos[daoId].votingPowers[account] = vp
+		}
+
+		// TODO: spend coins when spendAmount is positive & spender is a valid address
+		// spendAmount  Coins 
+		// spender      std.Address 
+		// TODO: set propoasl to FAILED when DAO does not have enough balance
+	}
+
+	// If more than 1/2 of non-abstaining voters vote No, proposal rejected
+	proposals[daoId][proposalId].status = REJECTED
+}
+
+func DepositDAO(daoId uint64, amount Coins) {
+	caller := std.GetOrigCaller()
+
+	// if sender is not a dao member, revert
+	isCallerDaoMember := isDAOMember(daoId, caller)
+	if !isCallerDaoMember {
+		panic("caller is not a gnodao member")
+	}
+
+	// TODO: send coins from caller to DAO
+	// TODO: verify received amount
+	daos[daoId].depositHistory = append(daos[daoId].depositHistory, Deposit {
+		address: caller,
+		amount: amount,
+	})
+}
+
+func GetDAO(daoId uint64) Proposal {
+	if int(daoId) >= len(daos) {
+		panic("invalid dao id")
+	}
+	return daos[daoId]
+}
+
+func GetDAOs(startAfter, limit uint64) []Proposal {
+	max := uint64(len(daos))
+	if startAfter+limit < max {
+		max = startAfter + limit
+	}
+	return daos[startAfter:max]
 }
 
 func GetProposal(daoId, proposalId uint64) Proposal {
@@ -220,92 +305,7 @@ func GetProposals(daoId, startAfter, limit uint64) []Proposal {
 	return proposals[daoId][startAfter:max]
 }
 
-func GetDAO(daoId uint64) Proposal {
-	if int(daoId) >= len(daos) {
-		panic("invalid dao id")
-	}
-	return daos[daoId]
-}
-
-func GetDAOs(startAfter, limit uint64) []Proposal {
-	max := uint64(len(daos))
-	if startAfter+limit < max {
-		max = startAfter + limit
-	}
-	return daos[startAfter:max]
-}
-
 func Render(path string) string {
-	if path == "" {
-		membersText := ``
-		for _, member := range quorum.members {
-			membersText += fmt.Sprintf("- %s\n", member.String())
-		}
-
-		pendingProposals := ``
-		executedProposals := ``
-		cancelledProposals := ``
-
-		for index, proposal := range proposals {
-			switch proposal.Status {
-			case PENDING:
-				pendingProposals += fmt.Sprintf("- [%s](https://gnodao.com/proposal/%d)\n", proposal.Title, index+1)
-			case EXECUTED:
-				executedProposals += fmt.Sprintf("- [%s](https://gnodao.com/proposal/%d)\n", proposal.Title, index+1)
-			case CANCELLED:
-				cancelledProposals += fmt.Sprintf("- [%s](https://gnodao.com/proposal/%d)\n", proposal.Title, index+1)
-			}
-		}
-
-		return fmt.Sprintf(`
-# Gnodao setup
-
-Members:
-%s
-
-Minimum approval needed: %d
-
-# Proposals
-
-Pending:
-%s
-
-Executed:
-%s
-
-Cancelled:
-%s`, membersText, quorum.minApproval, pendingProposals, executedProposals, cancelledProposals)
-	}
-
-	subPath := strings.Split(path, "/")
-	switch subPath[0] {
-	case "proposal":
-		if len(subPath) == 1 {
-			panic("no proposal id provided on path")
-		}
-		proposalId, err := strconv.Atoi(subPath[1])
-		if err != nil {
-			panic(err)
-		}
-		if len(proposals) <= int(proposalId) {
-			panic("invalid proposal id")
-		}
-		proposal := proposals[daoId][proposalId]
-
-		statusText := proposal.Status.String()
-		approversText := ``
-		for _, approval := range proposal.Approvals {
-			approversText += fmt.Sprintf("- %s\n", approval.address.String())
-		}
-		return fmt.Sprintf(`Status: %s
-Need at least %d approvals
-
-Proposal description:
-%s
-
-Approved by:
-%s`, statusText, quorum.minApproval, proposal.Description, approversText)
-	}
-
+	// TODO: implement
 	return ""
 }
