@@ -2,11 +2,11 @@ package gnodao
 
 import (
 	"fmt"
-	"gno.land/r/boards"
 	"std"
 	"strconv"
 	"strings"
 	"time"
+    "gno.land/p/avl"
 )
 
 type VoteOption uint32
@@ -29,18 +29,20 @@ type DAO struct {
 	id               uint64
 	uri              string                     // DAO homepage link
 	metadata         string                     // DAO metadata reference link
-	funds            Coins                      // DAO managing funds
+	funds            uint64                      // DAO managing funds
 	depositHistory   []Deposit                  // deposit history - reserved for later use
 	spendHistory     []Spend                    // spend history - reserved for later use
 	permissions      []string                   // permissions managed on DAO - reserved for later use
-	permMap          map[string]map[string]bool // permission map - reserved for later use
-	votingPowers     map[string]uint64
+	permMap          *avl.MutTree               // permission map - reserved for later use
+	votingPowers     *avl.MutTree
 	totalVotingPower uint64
 	votingPeriod     uint64
 	voteQuorum       uint64
 	threshold        uint64
 	vetoThreshold    uint64
 }
+
+// TODO: use avlTree package or mapping
 
 type ProposalStatus uint32
 
@@ -68,39 +70,68 @@ func (s ProposalStatus) String() string {
 	return ""
 }
 
+type VotingPower struct {
+	address string
+	power uint64
+}
+
 type Proposal struct {
 	daoId        uint64                // dao id of the proposal
 	id           uint64                // unique id assigned for each proposal
 	title        string                // proposal title
 	summary      string                // proposal summary
-	spendAmount  Coins                 // amount of tokens to spend as part the proposal
+	spendAmount  uint64                 // amount of tokens to spend as part the proposal
 	spender      std.Address           // address to receive spending tokens
-	vpUpdates    map[string]uint64     // updates on voting power - optional
+	vpUpdates    []VotingPower     // updates on voting power - optional
 	newMetadata  string                // new metadata for the DAO - optional
 	newURI       string                // new URI for the DAO - optional
 	submitTime   uint64                // proposal submission time
 	voteEndTime  uint64                // vote end time for the proposal
 	status       ProposalStatus        // StatusNil | StatusVotingPeriod | StatusPassed | StatusRejected | StatusFailed
-	votes        map[string]Vote       // votes on the proposal
-	votingPowers map[VoteOption]uint64 // voting power sum per voting option
+	votes        *avl.MutTree          // votes on the proposal
+	votingPowers []uint64 // voting power sum per voting option
 }
 
 // GNODAO STATE
 var daos []DAO
 var proposals [][]Proposal
 
-func isDAOMember(daoId uint64, address std.Address) bool {
+func getDAOVotingPower(daoId uint64, address std.Address) uint64 {
 	if len(daos) => int(daoId) {
-		return false
+		return 0
 	}
-	return daos[int(daoId)].votingPowers[address.String()] > 0
+    res, ok := daos[int(daoId)].votingPowers.Get(address.String())
+    if ok {
+        return res.(uint64)
+    }
+    return 0
+}
+
+func isDAOMember(daoId uint64, address std.Address) bool {
+	return getDAOVotingPower(daoId, address) > 0
+}
+
+func getVote(daoId, proposalId uint64, address std.Address) (Vote, ok) {
+	if int(daoId) >= len(daos) {
+		return Vote{}, false
+	}
+	
+	if int(proposalId) >= len(proposals[daoId]) {
+		return Vote{}, false
+	}
+
+	vote, ok := proposals[daoId][proposalId].votes.Get(address.String())
+    if ok {
+        return vote.(Vote), true
+    }
+	return Vote{}, false
 }
 
 // GNODAO FUNCTIONS
 func CreateDAO(
 	uri              string,
 	metadata         string,
-	votingPowers     map[string]uint64,
+	votingPowers     []VotingPower,
 	totalVotingPower uint64,
 	votingPeriod     uint64,
 	voteQuorum       uint64,
@@ -112,22 +143,33 @@ func CreateDAO(
 		id: daoId,
 		uri: uri,
 		metadata: metadata,
-		funds: Coins{},
+		funds: 0,
 		depositHistory: []Deposit{}  , 
 		spendHistory: []Spend {},
 		permissions: []string{},
-		votingPowers: votingPowers,
+		votingPowers: avl.NewMutTree(),
 		totalVotingPower:totalVotingPower,
 		votingPeriod: votingPeriod,
 		voteQuorum: voteQuorum,
 		threshold: threshold,
 		vetoThreshold: vetoThreshold,
 	})
+
+	for _, vp := range votingPowers {
+		daos[daoId].votingPowers.Set(vp.address, vp.power)
+	}
 	proposals = append(proposals, []Proposal{})
+	// TODO: emit events
 }
 
-// TODO: add missing params for CreateProposal
-func CreateProposal(daoId uint64, title, summary string) {
+func CreateProposal(
+	daoId uint64, 
+	title, summary string, 
+	spendAmount uint64, spender std.Address,
+	vpUpdates []VotingPower,
+	newMetadata  string,
+	newURI       string,
+) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not a dao member, revert
@@ -137,13 +179,20 @@ func CreateProposal(daoId uint64, title, summary string) {
 	}
 
 	proposals[daoId] = append(proposals[daoId], Proposal{
-		daoId:       daoId,
-		id:          len(proposals[daoId]),
-		title:       title,
-		summary:     summary,
-		submitTime:  time.Now().Unix(),
-		voteEndTime: time.Now().Unix()+daos[daoId].votingPeriod,
-		status:      VOTING_PERIOD,
+		daoId:        daoId,
+		id:           len(proposals[daoId]),
+		title:        title,
+		summary:      summary,
+		spendAmount:  spendAmount,
+		spender:      spender,
+		vpUpdates:    vpUpdates,
+		newMetadata:  newMetadata,
+		newURI:       newURI,
+		submitTime:   time.Now().Unix(),
+		voteEndTime:  time.Now().Unix()+daos[daoId].votingPeriod,
+		status:       VOTING_PERIOD,
+		votes:        avl.NewMutTree(),
+		votingPowers: []uint64{0,0,0,0}, // initiate as zero for 4 vote types
 	})
 }
 
@@ -167,28 +216,29 @@ func Vote(daoId, proposalId uint64, option VoteOption) {
 	}
 
 	// Original vote cancel
-	callerVotingPower := daos[daoId].votingPowers[caller.String()]
-	vote, ok := proposals[daoId][proposalId].votes[caller.String()]
+	callerVotingPower := getDAOVotingPower(daoId, caller)
+	vote, ok := getVoteOption(daoId, proposalId, caller)
 	if ok {
-		if proposals[daoId][proposalId].votingPowers[vote.option] > callerVotingPower {
-			proposals[daoId][proposalId].votingPowers[vote.option] -= callerVotingPower
+		if proposals[daoId][proposalId].votingPowers[int(vote.option)] > callerVotingPower {
+			proposals[daoId][proposalId].votingPowers[int(vote.option)] -= callerVotingPower
 		} else {
-			proposals[daoId][proposalId].votingPowers[vote.option] = 0
+			proposals[daoId][proposalId].votingPowers[int(vote.option)] = 0
 		}
 	}
 
 	// Create a vote
-	proposals[daoId][proposalId].votes[caller.String()] = Vote{
+	proposals[daoId][proposalId].votes.Set(caller.String(), Vote{
 		address: caller,
 		timestamp: time.Now().Unix(),
 		option: option,
-	}
+	})
 
 	// Voting power by option update for new vote
-	proposals[daoId][proposalId].votingPowers[option] += callerVotingPower
+	proposals[daoId][proposalId].votingPowers[int(option)] += callerVotingPower
 }
 
 // TODO: handle voting power change during voting period for other proposal
+// TODO: experiment with gas limit
 func TallyAndExecute(daoId, proposalId uint64) {
 	caller := std.GetOrigCaller()
 
@@ -232,29 +282,39 @@ func TallyAndExecute(daoId, proposalId uint64) {
 	if votingPowers[YES] > (totalVotes - votingPowers[ABSTAIN]) * threshold / 100 {
 		proposals[daoId][proposalId].status = PASSED
 
+		// TODO: spend coins when spendAmount is positive & spender is a valid address
+		if proposal.spendAmount > 0 {
+			if daos[daoId].funds >= proposal.spendAmount {
+				daos[daoId].funds -= proposal.spendAmount
+			} else {
+				proposals[daoId][proposalId].status = FAILED
+				return
+			}
+		}
+
 		if proposal.newMetadata != "" {
 			daos[daoId].metadata = proposal.newMetadata
 		}
 
-		if proposal.newMetadata != "" {
+		if proposal.newURI != "" {
 			daos[daoId].uri = proposal.newURI
 		}
 
-		for account, vp := range proposal.vpUpdates {
-			daos[daoId].votingPowers[account] = vp
+		for _, vp := range proposal.vpUpdates {
+			daos[daoId].votingPowers.Set(vp.address, vp.power)
 		}
 
-		// TODO: spend coins when spendAmount is positive & spender is a valid address
-		// spendAmount  Coins 
-		// spender      std.Address 
-		// TODO: set propoasl to FAILED when DAO does not have enough balance
+		// TODO: contract does not own account that can hold coins - this is one of limitations
+		// TODO: Adena Wallet from OnBloc - investigate on how they manage coins (swap - custody?)
+		// Manual sending for funds (Address <-> Address) - Miloš Živković
+		// https://github.com/gnolang/gno/blob/e392ab51bc05a5efbceaa8dbe395bac2e01ad808/tm2/pkg/crypto/keys/client/send.go#L109-L119
 	}
 
 	// If more than 1/2 of non-abstaining voters vote No, proposal rejected
 	proposals[daoId][proposalId].status = REJECTED
 }
 
-func DepositDAO(daoId uint64, amount Coins) {
+func DepositDAO(daoId uint64, amount uint64) {
 	caller := std.GetOrigCaller()
 
 	// if sender is not a dao member, revert

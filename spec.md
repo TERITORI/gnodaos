@@ -93,3 +93,7 @@ type Proposal struct{
 - QueryDAO
 - QueryDAOProposal
 - QueryDAOProposals
+
+## Client library
+
+https://github.com/gnolang/gno-js-client
