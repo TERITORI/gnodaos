@@ -14,6 +14,20 @@ var daoMembers = []std.Address{
 	"g1rel7980x4y257yh30umy3jx223efwakvnbbbbb",
 	"g1rel7980x4y257yh30umy3jx223efwakvnccccc",
 }
+var votingPowers = []VotingPower{
+	{
+		address: daoMembers[0].String(),
+		power:   1,
+	},
+	{
+		address: daoMembers[1].String(),
+		power:   2,
+	},
+	{
+		address: daoMembers[2].String(),
+		power:   3,
+	},
+}
 
 func assertPanic(t *testing.T, f func()) {
 	defer func() {
@@ -29,20 +43,7 @@ func TestIsDAOMember(t *testing.T) {
 	CreateDAO(
 		"https://gnodao1.org",
 		"https://metadata.gnodao1.org",
-		[]VotingPower{
-			{
-				address: daoMembers[0].String(),
-				power:   1,
-			},
-			{
-				address: daoMembers[1].String(),
-				power:   2,
-			},
-			{
-				address: daoMembers[2].String(),
-				power:   3,
-			},
-		},
+		votingPowers,
 		86400*2,
 		30,
 		10,
@@ -67,20 +68,7 @@ func TestCreateDAO(t *testing.T) {
 	CreateDAO(
 		"https://gnodao1.org",
 		"https://metadata.gnodao1.org",
-		[]VotingPower{
-			{
-				address: daoMembers[0].String(),
-				power:   1,
-			},
-			{
-				address: daoMembers[1].String(),
-				power:   2,
-			},
-			{
-				address: daoMembers[2].String(),
-				power:   3,
-			},
-		},
+		votingPowers,
 		86400*2,
 		30,
 		10,
