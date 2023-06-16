@@ -94,11 +94,11 @@ type Proposal struct {
 var daos []DAO
 var proposals [][]Proposal
 
-func getDAOVotingPower(daoId uint64, address std.Address) uint64 {
+func getDAOVotingPower(daoId uint64, address string) uint64 {
 	if len(daos) <= int(daoId) {
 		return 0
 	}
-	res, ok := daos[daoId].votingPowers.Get(address.String())
+	res, ok := daos[daoId].votingPowers.Get(address)
 	if ok {
 		return res.(uint64)
 	}
@@ -106,7 +106,7 @@ func getDAOVotingPower(daoId uint64, address std.Address) uint64 {
 }
 
 func IsDAOMember(daoId uint64, address std.Address) bool {
-	return getDAOVotingPower(daoId, address) > 0
+	return getDAOVotingPower(daoId, address.String()) > 0
 }
 
 func getVote(daoId, proposalId uint64, address std.Address) (Vote, bool) {
@@ -144,6 +144,7 @@ func CreateDAO(
 		depositHistory:   []string{},
 		spendHistory:     []string{},
 		permissions:      []string{},
+		permMap:          avl.NewMutTree(),
 		votingPowers:     avl.NewMutTree(),
 		totalVotingPower: 0,
 		votingPeriod:     votingPeriod,
@@ -152,11 +153,12 @@ func CreateDAO(
 		vetoThreshold:    vetoThreshold,
 	})
 
-	// TODO: calculate total voting power from sum
-
+	totalVotingPower := uint64(0)
 	for _, vp := range votingPowers {
 		daos[daoId].votingPowers.Set(vp.address, vp.power)
+		totalVotingPower += vp.power
 	}
+	daos[daoId].totalVotingPower = totalVotingPower
 	proposals = append(proposals, []Proposal{})
 	// TODO: emit events
 }
@@ -215,7 +217,7 @@ func VoteProposal(daoId, proposalId uint64, option VoteOption) {
 	}
 
 	// Original vote cancel
-	callerVotingPower := getDAOVotingPower(daoId, caller)
+	callerVotingPower := getDAOVotingPower(daoId, caller.String())
 	vote, ok := getVote(daoId, proposalId, caller)
 	if ok {
 		if proposals[daoId][proposalId].votingPowers[int(vote.option)] > callerVotingPower {
@@ -300,9 +302,10 @@ func TallyAndExecute(daoId, proposalId uint64) {
 		}
 
 		for _, vp := range proposal.vpUpdates {
+			daos[daoId].totalVotingPower -= getDAOVotingPower(daoId, vp.address)
 			daos[daoId].votingPowers.Set(vp.address, vp.power)
+			daos[daoId].totalVotingPower += vp.power
 		}
-		// TODO: calculate total voting power from changes
 
 		// TODO: contract does not own account that can hold coins - this is one of limitations
 		// TODO: Adena Wallet from OnBloc - investigate on how they manage coins (swap - custody?)

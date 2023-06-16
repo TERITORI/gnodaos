@@ -27,7 +27,7 @@ func assertPanic(t *testing.T, f func()) {
 func TestIsDAOMember(t *testing.T) {
 	daos = []DAO{}
 	CreateDAO(
-		"Gno DAO1",
+		"https://gnodao1.org",
 		"https://metadata.gnodao1.org",
 		[]VotingPower{
 			{
@@ -56,12 +56,93 @@ func TestIsDAOMember(t *testing.T) {
 	if IsDAOMember(0, caller1) != true {
 		t.Errorf("Should be true")
 	}
-	if IsDAOMember(0, caller1) != true {
+	if IsDAOMember(0, caller2) != true {
 		t.Errorf("Should be true")
 	}
 }
 
-// TODO: add test for CreateDAO
+func TestCreateDAO(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO(
+		"https://gnodao1.org",
+		"https://metadata.gnodao1.org",
+		[]VotingPower{
+			{
+				address: daoMembers[0].String(),
+				power:   1,
+			},
+			{
+				address: daoMembers[1].String(),
+				power:   2,
+			},
+			{
+				address: daoMembers[2].String(),
+				power:   3,
+			},
+		},
+		86400*2,
+		30,
+		10,
+		10,
+	)
+	if len(daos) != 1 {
+		t.Errorf("Number of daos be 1")
+	}
+	if len(proposals) != 1 {
+		t.Errorf("Number of daos be 1")
+	}
+	dao := daos[0]
+	if dao.id != 0 {
+		t.Errorf("first DAO id should be 0")
+	}
+	if dao.uri != "https://gnodao1.org" {
+		t.Errorf("dao uri not set properly")
+	}
+	if dao.metadata != "https://metadata.gnodao1.org" {
+		t.Errorf("dao metadata not set properly")
+	}
+	if dao.funds != 0 {
+		t.Errorf("dao funds not set properly")
+	}
+	if len(dao.depositHistory) != 0 {
+		t.Errorf("dao deposit history not set properly")
+	}
+	if len(dao.spendHistory) != 0 {
+		t.Errorf("dao spend history not set properly")
+	}
+	if len(dao.permissions) != 0 {
+		t.Errorf("dao permissions not set properly")
+	}
+	if dao.permMap == nil {
+		t.Errorf("dao permission map not set properly")
+	}
+	if getDAOVotingPower(0, caller.String()) != 0 {
+		t.Errorf("voting power not set properly")
+	}
+	if getDAOVotingPower(0, caller1.String()) != 1 {
+		t.Errorf("voting power not set properly")
+	}
+	if getDAOVotingPower(0, caller2.String()) != 2 {
+		t.Errorf("voting power not set properly")
+	}
+	if dao.totalVotingPower != 6 {
+		t.Errorf("totalVotingPower not set properly")
+	}
+	if dao.votingPeriod != 86400*2 {
+		t.Errorf("votingPeriod not set properly")
+	}
+	if dao.voteQuorum != 30 {
+		t.Errorf("voteQuorum not set properly")
+	}
+	if dao.threshold != 10 {
+		t.Errorf("threshold not set properly")
+	}
+	if dao.vetoThreshold != 10 {
+		t.Errorf("vetoThreshold not set properly")
+	}
+}
+
 // TODO: add test for CreateProposal
 // TODO: add test for Vote
 // TODO: add test for TallyAndExecute
