@@ -131,8 +131,123 @@ func TestCreateDAO(t *testing.T) {
 	}
 }
 
-// TODO: add test for CreateProposal
-// TODO: add test for Vote
+func TestCreateProposal(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+
+	assertPanic(t, func() {
+		std.TestSetOrigCaller(caller)
+		CreateProposal(0, "DAO fund bootstrap proposal", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "", "")
+	})
+
+	std.TestSetOrigCaller(caller1)
+	CreateProposal(0, "DAO fund bootstrap proposal", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "", "")
+	proposal := proposals[0][0]
+	if proposal.daoId != 0 {
+		t.Errorf("proposal daoId should be 0")
+	}
+	if proposal.id != 0 {
+		t.Errorf("proposal id should be 0")
+	}
+	if proposal.title != "DAO fund bootstrap proposal" {
+		t.Errorf("proposal title not set properly")
+	}
+	if proposal.summary != "Proposal to bootstrap DAO fund." {
+		t.Errorf("proposal summary not set properly")
+	}
+	if proposal.spendAmount != 0 {
+		t.Errorf("proposal spendAmount not set properly")
+	}
+	if proposal.spender != caller {
+		t.Errorf("proposal spender not set properly")
+	}
+	if len(proposal.vpUpdates) != 0 {
+		t.Errorf("proposal vpUpdates not set properly")
+	}
+	if proposal.newMetadata != "" {
+		t.Errorf("proposal newMetadata not set properly")
+	}
+	if proposal.newURI != "" {
+		t.Errorf("proposal newURI not set properly")
+	}
+	if proposal.submitTime != uint64(time.Now().Unix()) {
+		t.Errorf("proposal submitTime not set properly")
+	}
+	if proposal.voteEndTime != uint64(time.Now().Unix())+daos[0].votingPeriod {
+		t.Errorf("proposal voteEndTime not set properly")
+	}
+	if proposal.status != VOTING_PERIOD {
+		t.Errorf("proposal status not set properly")
+	}
+	if proposal.votes == nil {
+		t.Errorf("proposal votes not set properly")
+	}
+	if len(proposal.votingPowers) != 4 {
+		t.Errorf("proposal votingPowers not set properly")
+	}
+}
+
+func TestVoteProposal(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+	std.TestSetOrigCaller(caller1)
+	CreateProposal(0, "DAO fund bootstrap proposal", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "", "")
+	assertPanic(t, func() { // invalid dao id
+		std.TestSetOrigCaller(caller1)
+		VoteProposal(1, 0, YES)
+	})
+	assertPanic(t, func() { // invalid proposal id
+		std.TestSetOrigCaller(caller1)
+		VoteProposal(0, 1, YES)
+	})
+	assertPanic(t, func() { // not dao member
+		std.TestSetOrigCaller(caller)
+		VoteProposal(0, 0, YES)
+	})
+
+	// vote and check result is set properly
+	std.TestSetOrigCaller(caller1)
+	VoteProposal(0, 0, YES)
+	vote, found := getVote(0, 0, caller1)
+	if !found {
+		t.Errorf("proposal vote not set")
+	}
+	if vote.address != caller1 {
+		t.Errorf("vote address not set properly")
+	}
+	if vote.timestamp != uint64(time.Now().Unix()) {
+		t.Errorf("vote timestamp not set properly")
+	}
+	if vote.option != YES {
+		t.Errorf("vote option not set properly")
+	}
+	if proposals[0][0].votingPowers[int(YES)] != 1 {
+		t.Errorf("votePowers by vote option not set properly")
+	}
+
+	// vote again with different option and check result
+	VoteProposal(0, 0, NO)
+	vote, found = getVote(0, 0, caller1)
+	if vote.option != NO {
+		t.Errorf("vote option not set properly")
+	}
+	if proposals[0][0].votingPowers[int(YES)] != 0 {
+		t.Errorf("votePowers for YES not set properly")
+	}
+	if proposals[0][0].votingPowers[int(NO)] != 1 {
+		t.Errorf("votePowers for NO not set properly")
+	}
+
+	// test vote end time already reached
+	assertPanic(t, func() { // not dao member
+		std.TestSetOrigCaller(caller)
+		proposals[0][0].voteEndTime = uint64(time.Now().Unix()) - 1
+		VoteProposal(0, 0, YES)
+	})
+}
+
 // TODO: add test for TallyAndExecute
 // TODO: add test for DepositDAO
 // TODO: add test for GetDAO
