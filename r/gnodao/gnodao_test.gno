@@ -1,6 +1,7 @@
 package gnodao
 
 import (
+	"fmt"
 	"std"
 	"testing"
 	"time"
@@ -248,7 +249,81 @@ func TestVoteProposal(t *testing.T) {
 	})
 }
 
-// TODO: add test for TallyAndExecute
+func TestTallyAndExecute(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+	std.TestSetOrigCaller(caller1)
+	CreateProposal(0, "DAO fund bootstrap proposal", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{
+		{
+			address: caller.String(),
+			power:   1,
+		},
+	}, "newMetadata.com", "newURI.com")
+	assertPanic(t, func() { // invalid dao id
+		std.TestSetOrigCaller(caller1)
+		TallyAndExecute(1, 0)
+	})
+	assertPanic(t, func() { // invalid proposal id
+		std.TestSetOrigCaller(caller1)
+		TallyAndExecute(0, 1)
+	})
+	assertPanic(t, func() { // not dao member
+		std.TestSetOrigCaller(caller)
+		TallyAndExecute(0, 0)
+	})
+	assertPanic(t, func() { // vote end time not pass
+		std.TestSetOrigCaller(caller1)
+		TallyAndExecute(0, 0)
+	})
+
+	// vote end time to be reached
+	proposals[0][0].voteEndTime = uint64(time.Now().Unix()) - 1
+
+	// quorum not reached
+	std.TestSetOrigCaller(caller1)
+	TallyAndExecute(0, 0)
+	if proposals[0][0].status != REJECTED {
+		t.Errorf("proposal should be REJECTED for vote quorum")
+	}
+
+	// everyone abstains
+	proposals[0][0].votingPowers[ABSTAIN] = daos[0].totalVotingPower
+	std.TestSetOrigCaller(caller1)
+	TallyAndExecute(0, 0)
+	if proposals[0][0].status != REJECTED {
+		t.Errorf("proposal should be REJECTED for all abstains")
+	}
+
+	// more than 1/3 vote with NO_WITH_VETO
+	proposals[0][0].votingPowers[ABSTAIN] = daos[0].totalVotingPower / 2
+	proposals[0][0].votingPowers[NO_WITH_VETO] = daos[0].totalVotingPower / 2
+	std.TestSetOrigCaller(caller1)
+	TallyAndExecute(0, 0)
+	if proposals[0][0].status != REJECTED {
+		t.Errorf("proposal should be REJECTED for NO_WITH_VETO")
+	}
+
+	// all YES vote
+	proposals[0][0].votingPowers[ABSTAIN] = 0
+	proposals[0][0].votingPowers[NO_WITH_VETO] = 0
+	proposals[0][0].votingPowers[YES] = daos[0].totalVotingPower
+	std.TestSetOrigCaller(caller1)
+	TallyAndExecute(0, 0)
+	if proposals[0][0].status != PASSED {
+		t.Errorf("proposal should be PASSED")
+	}
+	if getDAOVotingPower(0, caller.String()) != 1 {
+		t.Errorf("voting power not set properly")
+	}
+	if daos[0].metadata != "newMetadata.com" {
+		t.Errorf("metadata not set properly")
+	}
+	if daos[0].uri != "newURI.com" {
+		t.Errorf("uri not set properly")
+	}
+}
+
 // TODO: add test for DepositDAO
 // TODO: add test for GetDAO
 // TODO: add test for GetDAOs

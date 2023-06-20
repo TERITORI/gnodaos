@@ -311,6 +311,7 @@ func TallyAndExecute(daoId, proposalId uint64) {
 		// TODO: Adena Wallet from OnBloc - investigate on how they manage coins (swap - custody?)
 		// Manual sending for funds (Address <-> Address) - Miloš Živković
 		// https://github.com/gnolang/gno/blob/e392ab51bc05a5efbceaa8dbe395bac2e01ad808/tm2/pkg/crypto/keys/client/send.go#L109-L119
+		return
 	}
 
 	// If more than 1/2 of non-abstaining voters vote No, proposal rejected
