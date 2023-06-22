@@ -372,6 +372,5 @@ func GetProposals(daoId, startAfter, limit uint64) []Proposal {
 }
 
 func Render(path string) string {
-	// TODO: implement
 	return ""
 }

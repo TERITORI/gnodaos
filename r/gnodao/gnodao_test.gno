@@ -324,9 +324,8 @@ func TestTallyAndExecute(t *testing.T) {
 	}
 }
 
-// TODO: add test for DepositDAO
-// TODO: add test for GetDAO
-// TODO: add test for GetDAOs
-// TODO: add test for GetProposal
-// TODO: add test for GetProposals
-// TODO: add test for Render
+func TestRender(t *testing.T) {
+	if Render("") != "" {
+		t.Errorf("Render function should empty")
+	}
+}
