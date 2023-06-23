@@ -1,30 +1,35 @@
-# Gnodao
+# GnoDAO
 
-The goal of the project is to provide DAO functionality in Gnolang.
+Our aim is to introduce DAO functionality to Gnolang through this project.
 
 ## Test execution
 
-Use `gnodev test r/gnodao --verbose --root-dir ../gno` to run the tests.
+To run the tests run
+
+```
+gnodev test r/gnodao --verbose --root-dir ../gno
+```
 
 ## User flow
 
-* 1- you can deploy a contract
-* 2- this contract has a quorum (basically an array of addresses and an agreement ratio) that can be updated (add new members, remove members, change quorum ratio)
-* 3- one member of the quorum can propose a tx
-* 4- each member of the quorum makes a tx to vote yes for the proposed tx id
-* 5- one member can execute the tx if nb of yes > quorum
-* 6- one member can close the proposal if nb of yes < quorum (can be annoying)
-I think step 6 is weird, maybe we can just set an expiration period for each proposal when we submit one. If block.timestamp > expiration then no one can vote or execute it
+Here are the steps to deploy a contract with a quorum:
+
+1. Firstly, you can deploy a contract.
+2. This contract has a quorum, which is essentially an array of addresses and an agreement ratio that can be updated. You can add new members, remove members, or change the quorum ratio.
+3. One member of the quorum can propose a transaction.
+4. Each member of the quorum is required to make a transaction to vote yes for the proposed transaction ID.
+5. If the number of yes votes exceeds the quorum, one member can execute the transaction.
+6. If the number of yes votes is less than the quorum, one member can close the proposal. However, this step can be inconvenient. Instead, we can set an expiration period for each proposal when we submit one. If block.timestamp is greater than expiration, no one can vote or execute it.
 
 
 ## Research
 
-https://hackmd.io/lF6_guCYQemIYXHV0oCynA
+- [Gnolang multisig research](https://hackmd.io/lF6_guCYQemIYXHV0oCynA)
 
 ## Resources
 
-https://github.com/slashbinslashnoname/gnoland_cheatsheet
-https://notes.pwnh4.com/s/pPIPCgXFw
-https://gnoland.space/r/users/types.gno
-https://gnoland.space/r/users/users.gno
-https://github.com/gnolang/gno/tree/master/examples/gno.land/r/boards
+- [Gnoland Cheatsheet](https://github.com/slashbinslashnoname/gnoland_cheatsheet)
+- [Gno Projects list](https://notes.pwnh4.com/s/pPIPCgXFw)
+- [Realm types example](https://gnoland.space/r/users/types.gno)
+- [Realm users example](https://gnoland.space/r/users/users.gno)
+- [Realm Board example](https://github.com/gnolang/gno/tree/master/examples/gno.land/r/boards)
