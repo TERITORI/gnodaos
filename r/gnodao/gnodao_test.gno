@@ -324,6 +324,66 @@ func TestTallyAndExecute(t *testing.T) {
 	}
 }
 
+func TestDepositDAO(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+
+	// panic when not a dao member
+	assertPanic(t, func() {
+		std.TestSetOrigCaller(caller)
+		DepositDAO(0, 100)
+	})
+
+	// not panics
+	std.TestSetOrigCaller(caller1)
+	DepositDAO(0, 100)
+}
+
+func TestGetDAO(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+
+	// panic when invalid dao id
+	assertPanic(t, func() {
+		std.TestSetOrigCaller(caller)
+		GetDAO(100)
+	})
+
+	// success when valid dao id
+	dao := GetDAO(0)
+	if dao.uri != "https://gnodao1.org" {
+		t.Errorf("uri not set properly")
+	}
+}
+
+func TestGetDAOs(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	gotDaos := GetDAOs(0, 10)
+	if len(gotDaos) != 0 {
+		t.Errorf("invalid number of daos")
+	}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+	CreateDAO("https://gnodao2.org", "https://metadata.gnodao2.org", votingPowers, 86400*2, 30, 10, 10)
+
+	gotDaos = GetDAOs(0, 0)
+	if len(gotDaos) != 0 {
+		t.Errorf("invalid number of daos")
+	}
+
+	gotDaos = GetDAOs(0, 10)
+	if len(gotDaos) != 2 {
+		t.Errorf("invalid number of daos")
+	}
+
+	gotDaos = GetDAOs(0, 1)
+	if len(gotDaos) != 1 {
+		t.Errorf("invalid number of daos")
+	}
+}
+
 func TestRender(t *testing.T) {
 	if Render("") != "" {
 		t.Errorf("Render function should empty")
