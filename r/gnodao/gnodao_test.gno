@@ -384,6 +384,57 @@ func TestGetDAOs(t *testing.T) {
 	}
 }
 
+func TestGetProposal(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+	std.TestSetOrigCaller(caller1)
+	CreateProposal(0, "DAO fund bootstrap proposal", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "newMetadata.com", "newURI.com")
+
+	// panic when invalid dao id
+	assertPanic(t, func() {
+		GetProposal(1, 0)
+	})
+
+	// panic when invalid proposal id
+	assertPanic(t, func() {
+		GetProposal(0, 1)
+	})
+
+	// success when valid dao id and proposal id
+	proposal := GetProposal(0, 0)
+	if proposal.title != "DAO fund bootstrap proposal" {
+		t.Errorf("title not set properly")
+	}
+}
+
+func TestGetProposals(t *testing.T) {
+	daos = []DAO{}
+	proposals = [][]Proposal{}
+	assertPanic(t, func() { // invalid dao id
+		GetProposals(0, 0, 10)
+	})
+	CreateDAO("https://gnodao1.org", "https://metadata.gnodao1.org", votingPowers, 86400*2, 30, 10, 10)
+	std.TestSetOrigCaller(caller1)
+	CreateProposal(0, "proposal #1", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "newMetadata.com", "newURI.com")
+	CreateProposal(0, "proposal #2", "Proposal to bootstrap DAO fund.", 0, caller, []VotingPower{}, "newMetadata.com", "newURI.com")
+
+	gotProposals := GetProposals(0, 0, 0)
+	if len(gotProposals) != 0 {
+		t.Errorf("invalid number of proposals")
+	}
+
+	gotProposals = GetProposals(0, 0, 10)
+	if len(gotProposals) != 2 {
+		t.Errorf("invalid number of proposals")
+	}
+
+	gotProposals = GetProposals(0, 0, 1)
+	if len(gotProposals) != 1 {
+		t.Errorf("invalid number of proposals")
+	}
+}
+
 func TestRender(t *testing.T) {
 	if Render("") != "" {
 		t.Errorf("Render function should empty")
