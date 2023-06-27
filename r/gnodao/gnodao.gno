@@ -1,8 +1,7 @@
 package gnodao
 
 import (
-	"fmt"
-	"gno.land/p/avl"
+	"gno.land/p/demo/avl"
 	"std"
 	"strconv"
 	"strings"
