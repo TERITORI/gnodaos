@@ -21,6 +21,29 @@ gnokey maketx addpkg  \
   -remote="test3.gno.land:36657" \
   -chainid="test3" \
   -pkgdir="./r/gnodao" \
-  -pkgpath="gno.land/r/demo/gnodao_v01" \
+  -pkgpath="gno.land/r/demo/gnodao_v02" \
   gopher
 # https://gnoscan.io/transactions/329084_0
+
+# Create DAO
+gnokey maketx call \
+  -gas-fee="1ugnot" \
+  -gas-wanted="5000000" \
+  -broadcast="true" \
+  -remote="test3.gno.land:36657" \
+  -chainid="test3" \
+  -pkgpath="gno.land/r/demo/gnodao_v02" \
+  -func="CreateDAO" \
+  -args="https://gnodao1.org" \
+  -args="https://metadata.gnodao1.org" \
+  -args=$GOPHER \
+  -args="1" \
+  -args="40" \
+  -args="30" \
+  -args="10" \
+  -args="10" \
+  gopher
+
+# Query DAO
+gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
+GetDAOs(0, 10)" -remote="test3.gno.land:36657"

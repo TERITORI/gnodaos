@@ -124,11 +124,35 @@ func getVote(daoId, proposalId uint64, address std.Address) (Vote, bool) {
 	return Vote{}, false
 }
 
+func parseVotingPowers(daoMembers, votingPowers string) []VotingPower {
+	parsedVPs := []VotingPower{}
+	if len(daoMembers) == 0 {
+		return parsedVPs
+	}
+	memberAddrs := strings.Split(daoMembers, ",")
+	memberPowers := strings.Split(votingPowers, ",")
+	if len(memberAddrs) != len(memberPowers) {
+		panic("mismatch between members and voting powers count")
+	}
+	for i, memberAddr := range memberAddrs {
+		power, err := strconv.Atoi(memberPowers[i])
+		if err != nil {
+			panic(err)
+		}
+		parsedVPs = append(parsedVPs, VotingPower{
+			address: memberAddr,
+			power:   uint64(power),
+		})
+	}
+	return parsedVPs
+}
+
 // GNODAO FUNCTIONS
 func CreateDAO(
 	uri string,
 	metadata string,
-	votingPowers []VotingPower,
+	daoMembers string,
+	votingPowers string,
 	votingPeriod uint64,
 	voteQuorum uint64,
 	threshold uint64,
@@ -152,8 +176,9 @@ func CreateDAO(
 		vetoThreshold:    vetoThreshold,
 	})
 
+	parsedVPs := parseVotingPowers(daoMembers, votingPowers)
 	totalVotingPower := uint64(0)
-	for _, vp := range votingPowers {
+	for _, vp := range parsedVPs {
 		daos[daoId].votingPowers.Set(vp.address, vp.power)
 		totalVotingPower += vp.power
 	}
@@ -166,7 +191,8 @@ func CreateProposal(
 	daoId uint64,
 	title, summary string,
 	spendAmount uint64, spender std.Address,
-	vpUpdates []VotingPower,
+	daoMembers string,
+	vpUpdates string,
 	newMetadata string,
 	newURI string,
 ) {
@@ -178,6 +204,7 @@ func CreateProposal(
 		panic("caller is not a dao member")
 	}
 
+	parsedVPUpdates := parseVotingPowers(daoMembers, vpUpdates)
 	proposals[daoId] = append(proposals[daoId], Proposal{
 		daoId:        daoId,
 		id:           uint64(len(proposals[daoId])),
@@ -185,7 +212,7 @@ func CreateProposal(
 		summary:      summary,
 		spendAmount:  spendAmount,
 		spender:      spender,
-		vpUpdates:    vpUpdates,
+		vpUpdates:    parsedVPUpdates,
 		newMetadata:  newMetadata,
 		newURI:       newURI,
 		submitTime:   uint64(time.Now().Unix()),
