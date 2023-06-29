@@ -44,6 +44,34 @@ gnokey maketx call \
   -args="10" \
   gopher
 
-# Query DAO
+# Create Proposal
+gnokey maketx call \
+  -gas-fee="1ugnot" \
+  -gas-wanted="5000000" \
+  -broadcast="true" \
+  -remote="test3.gno.land:36657" \
+  -chainid="test3" \
+  -pkgpath="gno.land/r/demo/gnodao_v02" \
+  -func="CreateProposal" \
+  -args=0 \
+  -args="First proposal" \
+  -args="First proposal summary" \
+  -args=0 \
+  -args=$GOPHER \
+  -args="" \
+  -args="" \
+  -args="https://metadata.gnodao1.com" \
+  -args="https://gnodao1.com" \
+  gopher
+
+# Query DAOs
 gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
 GetDAOs(0, 10)" -remote="test3.gno.land:36657"
+
+# Query DAO
+gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
+GetDAO(0)" -remote="test3.gno.land:36657"
+
+# Query Proposal
+gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
+GetProposal(0, 0)" -remote="test3.gno.land:36657"
