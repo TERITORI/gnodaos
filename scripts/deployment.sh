@@ -64,6 +64,20 @@ gnokey maketx call \
   -args="https://gnodao1.com" \
   gopher
 
+# Vote Proposal
+gnokey maketx call \
+  -gas-fee="1ugnot" \
+  -gas-wanted="5000000" \
+  -broadcast="true" \
+  -remote="test3.gno.land:36657" \
+  -chainid="test3" \
+  -pkgpath="gno.land/r/demo/gnodao_v02" \
+  -func="VoteProposal" \
+  -args=0 \
+  -args=1 \
+  -args=0 \
+  gopher
+
 # Query DAOs
 gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
 GetDAOs(0, 10)" -remote="test3.gno.land:36657"
