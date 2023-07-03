@@ -78,6 +78,19 @@ gnokey maketx call \
   -args=0 \
   gopher
 
+# Tally and execute
+gnokey maketx call \
+  -gas-fee="1ugnot" \
+  -gas-wanted="5000000" \
+  -broadcast="true" \
+  -remote="test3.gno.land:36657" \
+  -chainid="test3" \
+  -pkgpath="gno.land/r/demo/gnodao_v02" \
+  -func="TallyAndExecute" \
+  -args=0 \
+  -args=1 \
+  gopher
+
 # Query DAOs
 gnokey query "vm/qeval" -data="gno.land/r/demo/gnodao_v02
 GetDAOs(0, 10)" -remote="test3.gno.land:36657"
